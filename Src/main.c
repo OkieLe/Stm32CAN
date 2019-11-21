@@ -58,7 +58,7 @@ static void MX_GPIO_Init(void);
 static void MX_FDCAN1_Init(void);
 static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
-
+void HAL_FDCAN_Transmit_Message(uint8_t);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -116,11 +116,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    HAL_FDCAN_Transmit_Message(ubKeyNumber++);
-	  if (ubKeyNumber == 0x4) {
-	    ubKeyNumber = 0x0;
-	  }
-    HAL_Delay(1500);
   }
   /* USER CODE END 3 */
 }
@@ -380,6 +375,22 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     {
       /* Notification Error */
       Error_Handler();
+    }
+  }
+}
+
+/**
+  * @brief EXTI line detection callbacks
+  * @param GPIO_Pin: Specifies the pins connected EXTI line
+  * @retval None
+  */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == B1_Pin)
+  {
+    HAL_FDCAN_Transmit_Message(ubKeyNumber++);
+    if (ubKeyNumber == 0x4) {
+      ubKeyNumber = 0x0;
     }
   }
 }
