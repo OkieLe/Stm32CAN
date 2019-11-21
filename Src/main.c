@@ -59,6 +59,7 @@ static void MX_FDCAN1_Init(void);
 static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
 void HAL_FDCAN_Transmit_Message(uint8_t);
+void HAL_LED_Display(Led_TypeDef);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -252,8 +253,8 @@ static void MX_FDCAN1_Init(void)
   sFilterConfig.FilterID2 = 0x7FF;
   if (HAL_FDCAN_ConfigFilter(&hfdcan1, &sFilterConfig) != HAL_OK)
   {
-  /* Filter configuration Error */
-  Error_Handler();
+    /* Filter configuration Error */
+    Error_Handler();
   }
 
   /* Configure global filter to reject all non-matching frames */
@@ -263,7 +264,7 @@ static void MX_FDCAN1_Init(void)
   if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
   {
     /* Start Error */
-  Error_Handler();
+    Error_Handler();
   }
 
   if (HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0) != HAL_OK)
@@ -331,6 +332,30 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_LED_Display(Led_TypeDef Led) {
+  switch(Led) {
+  case LED_GREEN: {
+    HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_SET);
+    break;
+  }
+  case LED_ORANGE: {
+    HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+    break;
+  }
+  case LED_RED: {
+    HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
+    break;
+  }
+  case LED_OFF: {
+    HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
+    break;
+  }
+  default:
+    break;
+  }
+}
 
 void HAL_FDCAN_Transmit_Message(uint8_t SeqId) {
   /* Set the data to be transmitted */
@@ -338,7 +363,6 @@ void HAL_FDCAN_Transmit_Message(uint8_t SeqId) {
   TxData[1] = 0xAD;
 
   /* Start the Transmission process */
-
   if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, TxData) != HAL_OK)
   {
 	/* Transmission request Error */
@@ -369,6 +393,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     if ((RxHeader.Identifier == 0x321) && (RxHeader.IdType == FDCAN_STANDARD_ID)
 	        && (RxHeader.DataLength == FDCAN_DLC_BYTES_2))
     {
+      HAL_FDCAN_Transmit_Message(0x10);
     }
 
     if (HAL_FDCAN_ActivateNotification(hfdcan, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0) != HAL_OK)
@@ -389,7 +414,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   if (GPIO_Pin == B1_Pin)
   {
     HAL_FDCAN_Transmit_Message(ubKeyNumber++);
-    if (ubKeyNumber == 0x4) {
+    if (ubKeyNumber == 0xF) {
       ubKeyNumber = 0x0;
     }
   }
@@ -404,7 +429,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-
+  HAL_LED_Display(LED_RED);
   /* USER CODE END Error_Handler_Debug */
 }
 
