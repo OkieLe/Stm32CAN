@@ -33,6 +33,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define X_MAX_PIXEL  240
+#define Y_MAX_PIXEL  240
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -47,6 +49,8 @@ FDCAN_HandleTypeDef hfdcan1;
 SPI_HandleTypeDef hspi1;
 
 /* USER CODE BEGIN PV */
+__IO uint32_t ButtonState = 0;
+
 uint8_t ubKeyNumber = 0x0;
 FDCAN_RxHeaderTypeDef RxHeader;
 uint8_t RxData[8];
@@ -61,13 +65,21 @@ static void MX_FDCAN1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 void HAL_FDCAN_Transmit_Message(uint8_t);
 void HAL_LED_Display(Led_TypeDef);
+
+void LCD_SetUp(void);
+void LCD_Select(void);
+void LCD_Unselect(void);
+void LCD_WriteCommand(uint8_t);
+void LCD_WriteData(uint8_t);
+void LCD_WriteData_16Bits(uint16_t);
+void LCD_Fill_Color(uint16_t Color);
+void LCD_SetRegion(uint16_t xStar, uint16_t yStar, uint16_t xEnd, uint16_t yEnd);
 /* USER CODE END 0 */
 
 /**
@@ -121,6 +133,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    if(ButtonState != 0)
+  	{
+  	  ButtonState = 0;
+  	  HAL_Delay(5);
+  	}
   }
   /* USER CODE END 3 */
 }
@@ -467,9 +484,141 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == B1_Pin)
   {
+    ButtonState = 1;
     HAL_FDCAN_Transmit_Message(ubKeyNumber++);
     if (ubKeyNumber == 0xF) {
       ubKeyNumber = 0x0;
+    }
+  }
+}
+
+void LCD_SetUp(void){
+  HAL_Delay(500);
+  LCD_WriteCommand(0x11);
+  HAL_Delay(120);
+  // Display Setting
+  LCD_WriteCommand(0x36);
+  LCD_WriteData (0x00);
+  LCD_WriteCommand(0x3a);
+  LCD_WriteData (0x05);
+  LCD_WriteCommand(0x21);
+  LCD_WriteCommand(0x2a);
+  LCD_WriteData (0x00);
+  LCD_WriteData (0x00);
+  LCD_WriteData (0x00);
+  LCD_WriteData (0xef);
+  LCD_WriteCommand(0x2b);
+  LCD_WriteData (0x00);
+  LCD_WriteData (0x00);
+  LCD_WriteData (0x00);
+  LCD_WriteData (0xef);
+  // ST7789V Frame rate setting
+  LCD_WriteCommand(0xb2);
+  LCD_WriteData (0x0c);
+  LCD_WriteData (0x0c);
+  LCD_WriteData (0x00);
+  LCD_WriteData (0x33);
+  LCD_WriteData (0x33);
+  LCD_WriteCommand(0xb7);
+  LCD_WriteData (0x35);
+  // ST7789V Power setting
+  LCD_WriteCommand(0xbb);
+  LCD_WriteData (0x1f);
+  LCD_WriteCommand(0xc0);
+  LCD_WriteData (0x2c);
+  LCD_WriteCommand(0xc2);
+  LCD_WriteData (0x01);
+  LCD_WriteCommand(0xc3);
+  LCD_WriteData (0x12);
+  LCD_WriteCommand(0xc4);
+  LCD_WriteData (0x20);
+  LCD_WriteCommand(0xc6);
+  LCD_WriteData (0x0f);
+  LCD_WriteCommand(0xd0);
+  LCD_WriteData (0xa4);
+  LCD_WriteData (0xa1);
+  // ST7789V gamma setting
+  LCD_WriteCommand(0xe0);
+  LCD_WriteData (0xd0);
+  LCD_WriteData (0x08);
+  LCD_WriteData (0x11);
+  LCD_WriteData (0x08);
+  LCD_WriteData (0x0c);
+  LCD_WriteData (0x15);
+  LCD_WriteData (0x39);
+  LCD_WriteData (0x33);
+  LCD_WriteData (0x50);
+  LCD_WriteData (0x36);
+  LCD_WriteData (0x13);
+  LCD_WriteData (0x14);
+  LCD_WriteData (0x29);
+  LCD_WriteData (0x2d);
+  LCD_WriteCommand(0xe1);
+  LCD_WriteData (0xd0);
+  LCD_WriteData (0x08);
+  LCD_WriteData (0x10);
+  LCD_WriteData (0x08);
+  LCD_WriteData (0x06);
+  LCD_WriteData (0x06);
+  LCD_WriteData (0x39);
+  LCD_WriteData (0x44);
+  LCD_WriteData (0x51);
+  LCD_WriteData (0x0b);
+  LCD_WriteData (0x16);
+  LCD_WriteData (0x14);
+  LCD_WriteData (0x2f);
+  LCD_WriteData (0x31);
+
+  LCD_WriteCommand(0x29);
+}
+
+void LCD_Select(void)
+{
+  HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_RESET);
+}
+
+void LCD_Unselect(void) {
+  HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
+}
+
+void LCD_WriteCommand(uint8_t Command)
+{
+  uint16_t TxData = Command | 0x100;
+  HAL_SPI_Transmit(&hspi1, (uint8_t*)&TxData, 1, 0x1000);
+}
+
+void LCD_WriteData(uint8_t Data)
+{
+  uint16_t TxData = Data;
+  HAL_SPI_Transmit(&hspi1, (uint8_t*)&TxData, 1, 0x1000);
+}
+
+void LCD_WriteData_16Bits(uint16_t Data)
+{
+  LCD_WriteData(Data>>8);
+  LCD_WriteData(Data);
+}
+
+void LCD_SetRegion(uint16_t xStar, uint16_t yStar, uint16_t xEnd, uint16_t yEnd)
+{
+  LCD_WriteCommand(0x2A);
+  LCD_WriteData_16Bits(xStar);
+  LCD_WriteData_16Bits(xEnd);
+  LCD_WriteCommand(0x2B);
+  LCD_WriteData_16Bits(yStar);
+  LCD_WriteData_16Bits(yEnd);
+  LCD_WriteCommand(0x2c);
+}
+
+void LCD_Fill_Color(uint16_t Color)
+{
+  uint8_t i, j;
+  LCD_SetRegion(0, 0, X_MAX_PIXEL-1, Y_MAX_PIXEL-1);
+  for(i=0; i<X_MAX_PIXEL; i++)
+  {
+    for(j=0; j<Y_MAX_PIXEL; j++)
+    {
+    	LCD_WriteData_16Bits(Color);
     }
   }
 }
