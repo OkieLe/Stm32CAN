@@ -78,7 +78,16 @@ void Error_Handler(void);
 #define LD2_Pin GPIO_PIN_1
 #define LD2_GPIO_Port GPIOE
 /* USER CODE BEGIN Private defines */
-
+typedef enum
+{
+LED1 = 0,
+LED_GREEN = LED1,
+LED2 = 1,
+LED_ORANGE = LED2,
+LED3 = 2,
+LED_RED = LED3,
+LED_OFF = 3
+} Led_TypeDef;
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
