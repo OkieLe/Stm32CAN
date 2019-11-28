@@ -61,6 +61,12 @@ void Error_Handler(void);
 #define B1_Pin GPIO_PIN_13
 #define B1_GPIO_Port GPIOC
 #define B1_EXTI_IRQn EXTI15_10_IRQn
+#define CS_Pin GPIO_PIN_4
+#define CS_GPIO_Port GPIOA
+#define SCK_Pin GPIO_PIN_5
+#define SCK_GPIO_Port GPIOA
+#define SDA_Pin GPIO_PIN_7
+#define SDA_GPIO_Port GPIOA
 #define LD1_Pin GPIO_PIN_0
 #define LD1_GPIO_Port GPIOB
 #define LD3_Pin GPIO_PIN_14
@@ -72,16 +78,7 @@ void Error_Handler(void);
 #define LD2_Pin GPIO_PIN_1
 #define LD2_GPIO_Port GPIOE
 /* USER CODE BEGIN Private defines */
-typedef enum
-{
-LED1 = 0,
-LED_GREEN = LED1,
-LED2 = 1,
-LED_ORANGE = LED2,
-LED3 = 2,
-LED_RED = LED3,
-LED_OFF = 3
-} Led_TypeDef;
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
