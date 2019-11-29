@@ -35,6 +35,16 @@
 /* USER CODE BEGIN PD */
 #define X_MAX_PIXEL  240
 #define Y_MAX_PIXEL  240
+
+#define RED    0xF800
+#define GREEN  0x07E0
+#define BLUE   0x001F
+#define WHITE  0xFFFF
+#define BLACK  0x0000
+#define GRAY   0xEF5D
+#define GRAY75 0x39E7
+#define GRAY50 0x7BEF
+#define GRAY25 0xADB5
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -75,6 +85,8 @@ void HAL_LED_Display(Led_TypeDef);
 void LCD_SetUp(void);
 void LCD_Select(void);
 void LCD_Unselect(void);
+void LCD_Enable_Clk(void);
+void LCD_SetBrightness(uint8_t);
 void LCD_WriteCommand(uint8_t);
 void LCD_WriteData(uint8_t);
 void LCD_WriteData_16Bits(uint16_t);
@@ -123,7 +135,7 @@ int main(void)
   /* Initialize interrupts */
   MX_NVIC_Init();
   /* USER CODE BEGIN 2 */
-
+  LCD_SetUp();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -136,6 +148,8 @@ int main(void)
     if(ButtonState != 0)
   	{
   	  ButtonState = 0;
+      LCD_SetBrightness(0xFF);
+  	  LCD_Fill_Color(GREEN);
   	  HAL_Delay(5);
   	}
   }
@@ -581,16 +595,36 @@ void LCD_Unselect(void) {
   HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
 }
 
+void LCD_SetBrightness(uint8_t Brightness)
+{
+  LCD_WriteCommand(0x53);
+  LCD_WriteData(0x14);
+  LCD_WriteCommand(0x51);
+  LCD_WriteData(Brightness);
+}
+
+void LCD_Enable_Clk(void)
+{
+  HAL_GPIO_WritePin(SCK_GPIO_Port, SCK_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(SCK_GPIO_Port, SCK_Pin, GPIO_PIN_SET);
+}
+
 void LCD_WriteCommand(uint8_t Command)
 {
+  LCD_Select();
+  LCD_Enable_Clk();
   uint16_t TxData = Command | 0x100;
   HAL_SPI_Transmit(&hspi1, (uint8_t*)&TxData, 1, 0x1000);
+  LCD_Unselect();
 }
 
 void LCD_WriteData(uint8_t Data)
 {
+  LCD_Select();
+  LCD_Enable_Clk();
   uint16_t TxData = Data;
   HAL_SPI_Transmit(&hspi1, (uint8_t*)&TxData, 1, 0x1000);
+  LCD_Unselect();
 }
 
 void LCD_WriteData_16Bits(uint16_t Data)
