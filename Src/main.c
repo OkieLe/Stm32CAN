@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "lcd_st7789.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,16 +35,6 @@
 /* USER CODE BEGIN PD */
 #define X_MAX_PIXEL  240
 #define Y_MAX_PIXEL  240
-
-#define RED    0xF800
-#define GREEN  0x07E0
-#define BLUE   0x001F
-#define WHITE  0xFFFF
-#define BLACK  0x0000
-#define GRAY   0xEF5D
-#define GRAY75 0x39E7
-#define GRAY50 0x7BEF
-#define GRAY25 0xADB5
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -81,17 +71,6 @@ static void MX_NVIC_Init(void);
 /* USER CODE BEGIN 0 */
 void HAL_FDCAN_Transmit_Message(uint8_t);
 void HAL_LED_Display(Led_TypeDef);
-
-void LCD_SetUp(void);
-void LCD_Select(void);
-void LCD_Unselect(void);
-void LCD_Enable_Clk(void);
-void LCD_SetBrightness(uint8_t);
-void LCD_WriteCommand(uint8_t);
-void LCD_WriteData(uint8_t);
-void LCD_WriteData_16Bits(uint16_t);
-void LCD_Fill_Color(uint16_t Color);
-void LCD_SetRegion(uint16_t xStar, uint16_t yStar, uint16_t xEnd, uint16_t yEnd);
 /* USER CODE END 0 */
 
 /**
@@ -135,7 +114,7 @@ int main(void)
   /* Initialize interrupts */
   MX_NVIC_Init();
   /* USER CODE BEGIN 2 */
-  LCD_SetUp();
+  ST7789_Init(&hspi1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -148,8 +127,8 @@ int main(void)
     if(ButtonState != 0)
   	{
   	  ButtonState = 0;
-      LCD_SetBrightness(0xFF);
-  	  LCD_Fill_Color(GREEN);
+      ST7789_DrawPixel(120, 120, WHITE);
+      ST7789_SetBrightness(0x0);
   	  HAL_Delay(5);
   	}
   }
@@ -174,6 +153,9 @@ void SystemClock_Config(void)
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
+  /** Macro to configure the PLL clock source 
+  */
+  __HAL_RCC_PLL_PLLSOURCE_CONFIG(RCC_PLLSOURCE_HSE);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
@@ -210,7 +192,15 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_FDCAN|RCC_PERIPHCLK_SPI1;
-  PeriphClkInitStruct.Spi123ClockSelection = RCC_SPI123CLKSOURCE_PLL;
+  PeriphClkInitStruct.PLL2.PLL2M = 4;
+  PeriphClkInitStruct.PLL2.PLL2N = 80;
+  PeriphClkInitStruct.PLL2.PLL2P = 4;
+  PeriphClkInitStruct.PLL2.PLL2Q = 2;
+  PeriphClkInitStruct.PLL2.PLL2R = 2;
+  PeriphClkInitStruct.PLL2.PLL2RGE = RCC_PLL2VCIRANGE_1;
+  PeriphClkInitStruct.PLL2.PLL2VCOSEL = RCC_PLL2VCOMEDIUM;
+  PeriphClkInitStruct.PLL2.PLL2FRACN = 0;
+  PeriphClkInitStruct.Spi123ClockSelection = RCC_SPI123CLKSOURCE_PLL2;
   PeriphClkInitStruct.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
@@ -341,11 +331,11 @@ static void MX_SPI1_Init(void)
   /* SPI1 parameter configuration*/
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES_TXONLY;
+  hspi1.Init.Direction = SPI_DIRECTION_1LINE;
   hspi1.Init.DataSize = SPI_DATASIZE_9BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_HARD_OUTPUT;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
   hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
@@ -389,6 +379,9 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, CS_Pin|RST_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LD1_Pin|LD3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -399,6 +392,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : CS_Pin RST_Pin */
+  GPIO_InitStruct.Pin = CS_Pin|RST_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD1_Pin LD3_Pin */
   GPIO_InitStruct.Pin = LD1_Pin|LD3_Pin;
@@ -506,156 +506,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   }
 }
 
-void LCD_SetUp(void){
-  HAL_Delay(500);
-  LCD_WriteCommand(0x11);
-  HAL_Delay(120);
-  // Display Setting
-  LCD_WriteCommand(0x36);
-  LCD_WriteData (0x00);
-  LCD_WriteCommand(0x3a);
-  LCD_WriteData (0x05);
-  LCD_WriteCommand(0x21);
-  LCD_WriteCommand(0x2a);
-  LCD_WriteData (0x00);
-  LCD_WriteData (0x00);
-  LCD_WriteData (0x00);
-  LCD_WriteData (0xef);
-  LCD_WriteCommand(0x2b);
-  LCD_WriteData (0x00);
-  LCD_WriteData (0x00);
-  LCD_WriteData (0x00);
-  LCD_WriteData (0xef);
-  // ST7789V Frame rate setting
-  LCD_WriteCommand(0xb2);
-  LCD_WriteData (0x0c);
-  LCD_WriteData (0x0c);
-  LCD_WriteData (0x00);
-  LCD_WriteData (0x33);
-  LCD_WriteData (0x33);
-  LCD_WriteCommand(0xb7);
-  LCD_WriteData (0x35);
-  // ST7789V Power setting
-  LCD_WriteCommand(0xbb);
-  LCD_WriteData (0x1f);
-  LCD_WriteCommand(0xc0);
-  LCD_WriteData (0x2c);
-  LCD_WriteCommand(0xc2);
-  LCD_WriteData (0x01);
-  LCD_WriteCommand(0xc3);
-  LCD_WriteData (0x12);
-  LCD_WriteCommand(0xc4);
-  LCD_WriteData (0x20);
-  LCD_WriteCommand(0xc6);
-  LCD_WriteData (0x0f);
-  LCD_WriteCommand(0xd0);
-  LCD_WriteData (0xa4);
-  LCD_WriteData (0xa1);
-  // ST7789V gamma setting
-  LCD_WriteCommand(0xe0);
-  LCD_WriteData (0xd0);
-  LCD_WriteData (0x08);
-  LCD_WriteData (0x11);
-  LCD_WriteData (0x08);
-  LCD_WriteData (0x0c);
-  LCD_WriteData (0x15);
-  LCD_WriteData (0x39);
-  LCD_WriteData (0x33);
-  LCD_WriteData (0x50);
-  LCD_WriteData (0x36);
-  LCD_WriteData (0x13);
-  LCD_WriteData (0x14);
-  LCD_WriteData (0x29);
-  LCD_WriteData (0x2d);
-  LCD_WriteCommand(0xe1);
-  LCD_WriteData (0xd0);
-  LCD_WriteData (0x08);
-  LCD_WriteData (0x10);
-  LCD_WriteData (0x08);
-  LCD_WriteData (0x06);
-  LCD_WriteData (0x06);
-  LCD_WriteData (0x39);
-  LCD_WriteData (0x44);
-  LCD_WriteData (0x51);
-  LCD_WriteData (0x0b);
-  LCD_WriteData (0x16);
-  LCD_WriteData (0x14);
-  LCD_WriteData (0x2f);
-  LCD_WriteData (0x31);
-
-  LCD_WriteCommand(0x29);
-}
-
-void LCD_Select(void)
-{
-  HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_RESET);
-}
-
-void LCD_Unselect(void) {
-  HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
-}
-
-void LCD_SetBrightness(uint8_t Brightness)
-{
-  LCD_WriteCommand(0x53);
-  LCD_WriteData(0x14);
-  LCD_WriteCommand(0x51);
-  LCD_WriteData(Brightness);
-}
-
-void LCD_Enable_Clk(void)
-{
-  HAL_GPIO_WritePin(SCK_GPIO_Port, SCK_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(SCK_GPIO_Port, SCK_Pin, GPIO_PIN_SET);
-}
-
-void LCD_WriteCommand(uint8_t Command)
-{
-  LCD_Select();
-  LCD_Enable_Clk();
-  uint16_t TxData = Command | 0x100;
-  HAL_SPI_Transmit(&hspi1, (uint8_t*)&TxData, 1, 0x1000);
-  LCD_Unselect();
-}
-
-void LCD_WriteData(uint8_t Data)
-{
-  LCD_Select();
-  LCD_Enable_Clk();
-  uint16_t TxData = Data;
-  HAL_SPI_Transmit(&hspi1, (uint8_t*)&TxData, 1, 0x1000);
-  LCD_Unselect();
-}
-
-void LCD_WriteData_16Bits(uint16_t Data)
-{
-  LCD_WriteData(Data>>8);
-  LCD_WriteData(Data);
-}
-
-void LCD_SetRegion(uint16_t xStar, uint16_t yStar, uint16_t xEnd, uint16_t yEnd)
-{
-  LCD_WriteCommand(0x2A);
-  LCD_WriteData_16Bits(xStar);
-  LCD_WriteData_16Bits(xEnd);
-  LCD_WriteCommand(0x2B);
-  LCD_WriteData_16Bits(yStar);
-  LCD_WriteData_16Bits(yEnd);
-  LCD_WriteCommand(0x2c);
-}
-
-void LCD_Fill_Color(uint16_t Color)
-{
-  uint8_t i, j;
-  LCD_SetRegion(0, 0, X_MAX_PIXEL-1, Y_MAX_PIXEL-1);
-  for(i=0; i<X_MAX_PIXEL; i++)
-  {
-    for(j=0; j<Y_MAX_PIXEL; j++)
-    {
-    	LCD_WriteData_16Bits(Color);
-    }
-  }
-}
 /* USER CODE END 4 */
 
 /**

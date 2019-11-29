@@ -65,6 +65,8 @@ void Error_Handler(void);
 #define CS_GPIO_Port GPIOA
 #define SCK_Pin GPIO_PIN_5
 #define SCK_GPIO_Port GPIOA
+#define RST_Pin GPIO_PIN_6
+#define RST_GPIO_Port GPIOA
 #define SDA_Pin GPIO_PIN_7
 #define SDA_GPIO_Port GPIOA
 #define LD1_Pin GPIO_PIN_0
