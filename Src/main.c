@@ -33,6 +33,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define	LCD_RST(n)	(n ? HAL_GPIO_WritePin(RST_GPIO_Port, RST_Pin, GPIO_PIN_SET) : HAL_GPIO_WritePin(RST_GPIO_Port, RST_Pin, GPIO_PIN_RESET))
+#define	LCD_SCK(n)	(n ? HAL_GPIO_WritePin(SCK_GPIO_Port, SCK_Pin, GPIO_PIN_SET) : HAL_GPIO_WritePin(SCK_GPIO_Port, SCK_Pin, GPIO_PIN_RESET))
+#define	LCD_CS(n)	(n ? HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET) : HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_RESET))
+#define	LCD_SDA(n)	(n ? HAL_GPIO_WritePin(SDA_GPIO_Port, SDA_Pin, GPIO_PIN_SET) : HAL_GPIO_WritePin(SDA_GPIO_Port, SDA_Pin, GPIO_PIN_RESET))
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -60,6 +64,13 @@ static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
 void HAL_FDCAN_Transmit_Message(uint8_t);
 void HAL_LED_Display(Led_TypeDef);
+void WriteByte(uint8_t byte);
+void WriteDC(uint8_t cmd);
+void WriteCommand(uint8_t cmdId);
+void WriteData(uint8_t data);
+void LCD_Init(void);
+void SetRegion(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
+void DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -107,11 +118,13 @@ int main(void)
   /* Initialize interrupts */
   MX_NVIC_Init();
   /* USER CODE BEGIN 2 */
-
+  LCD_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  HAL_Delay(100);
+  DrawLine(0, 0, 239, 239, 0x07E0);
   while (1)
   {
     /* USER CODE END WHILE */
@@ -299,9 +312,13 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, CS_Pin|SCK_Pin|RST_Pin|SDA_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LD1_Pin|LD3_Pin, GPIO_PIN_RESET);
@@ -314,6 +331,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : CS_Pin SCK_Pin RST_Pin SDA_Pin */
+  GPIO_InitStruct.Pin = CS_Pin|SCK_Pin|RST_Pin|SDA_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD1_Pin LD3_Pin */
   GPIO_InitStruct.Pin = LD1_Pin|LD3_Pin;
@@ -416,6 +440,182 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     HAL_FDCAN_Transmit_Message(ubKeyNumber++);
     if (ubKeyNumber == 0xF) {
       ubKeyNumber = 0x0;
+    }
+  }
+}
+
+void WriteByte(uint8_t byte) {
+  uint8_t i = 0;
+  LCD_CS(0);
+  for(i=8; i>0; i--)
+  {
+	LCD_SCK(0);
+    if(byte & 0x80)
+      LCD_SDA(1);
+    else
+      LCD_SDA(0);
+	LCD_SCK(1);
+    byte <<= 1;
+  }
+  LCD_CS(1);
+}
+
+void WriteDC(uint8_t data) {
+  LCD_CS(0);
+  LCD_SCK(0);
+  if(data & 0x01)
+    LCD_SDA(1);
+  else
+    LCD_SDA(0);
+  LCD_SCK(1);
+  LCD_CS(1);
+}
+
+void WriteCommand(uint8_t cmdId)
+{
+  LCD_CS(0);
+  WriteDC(0x0);
+  WriteByte(cmdId);
+  LCD_CS(1);
+}
+
+void WriteData(uint8_t data)
+{
+  LCD_CS(0);
+  WriteDC(0x1);
+  WriteByte(data);
+  LCD_CS(1);
+}
+
+void LCD_Init()
+{
+  LCD_RST(1);
+  HAL_Delay(300);
+  LCD_RST(0);
+  HAL_Delay(300);
+  LCD_RST(1);
+  HAL_Delay(300);
+
+  WriteCommand(0x01);
+  HAL_Delay(150);
+
+  WriteCommand(0x11);
+  HAL_Delay(500);
+  WriteCommand(0x3A);
+  WriteData(0x55);
+  HAL_Delay(10);
+  WriteCommand(0x36);
+  WriteData(0x0);
+  WriteCommand(0x2A);
+  WriteData(0x0);
+  WriteData(0x0);
+  WriteData(0x0);
+  WriteData(0xF0);
+  WriteCommand(0x2B);
+  WriteData(0x0);
+  WriteData(0x0);
+  WriteData(0x0);
+  WriteData(0xF0);
+  WriteCommand(0x21);
+  WriteData(0x55);
+  HAL_Delay(10);
+  WriteCommand(0x36);
+  WriteData(0x0);
+  WriteCommand(0x2A);
+  WriteData(0x0);
+  WriteData(0x0);
+  WriteData(0x0);
+  WriteData(0xF0);
+  WriteCommand(0x2B);
+  WriteData(0x0);
+  WriteData(0x0);
+  WriteData(0x0);
+  WriteData(0xF0);
+  WriteCommand(0x21);
+  HAL_Delay(10);
+  WriteCommand(0x13);
+  HAL_Delay(10);
+  WriteCommand(0x29);
+  HAL_Delay(500);
+}
+
+void SetRegion(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+{
+  //CASET
+  WriteCommand(0x2A);
+  {
+    uint8_t data[] = {(x0 >> 8) & 0xFF, x0 & 0xFF, (x1 >> 8) & 0xFF, x1 & 0xFF};
+    for (uint8_t i = 0; i < sizeof(data); i++) {
+      WriteData(data[i]);
+    }
+  }
+
+  //RASET
+  WriteCommand(0x2B);
+  {
+    uint8_t data[] = {(y0 >> 8) & 0xFF, y0 & 0xFF, (y1 >> 8) & 0xFF, y1 & 0xFF};
+    for (uint8_t i = 0; i < sizeof(data); i++) {
+      WriteData(data[i]);
+    }
+  }
+  //write to RAM
+  //RAMWR
+  WriteCommand(0x2C);
+}
+
+void DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color)
+{
+  uint16_t t;
+  int xerr = 0, yerr = 0, delta_x, delta_y, distance;
+  int incx, incy, uRow, uCol;
+
+  delta_x = x2 - x1;
+  delta_y = y2 - y1;
+
+  uRow = x1;
+  uCol = y1;
+
+  if (delta_x > 0)
+    incx = 1;
+  else if (delta_x == 0)
+    incx = 0;
+  else
+  {
+    incx = -1;
+    delta_x = -delta_x;
+  }
+
+  if (delta_y > 0)
+    incy = 1;
+  else if (delta_y == 0)
+    incy = 0;
+  else
+  {
+    incy = -1;
+    delta_y = -delta_x;
+  }
+  if (delta_x > delta_y)
+    distance = delta_x;
+  else
+    distance = delta_y;
+
+  for (t = 0; t <= distance; t++)
+  {
+    SetRegion(uRow, uCol, uRow, uCol);
+    uint8_t data[] = {color >> 8, color & 0xFF};
+    WriteData(data[0]);
+    WriteData(data[1]);
+    xerr += delta_x;
+    yerr += delta_y;
+    if (xerr > distance)
+    {
+      xerr -= distance;
+      uRow += incx;
+    }
+    if (yerr > distance)
+    {
+      yerr -= distance;
+      uCol += incy;
     }
   }
 }
