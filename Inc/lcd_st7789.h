@@ -68,7 +68,7 @@
 #define ST7789_DATA 1 //Write data index
 
 //basic functions.
-void ST7789_Init(SPI_HandleTypeDef *hspi);
+void ST7789_Init();
 void ST7789_SetBrightness(uint8_t Brightness);
 void ST7789_Fill_Color(uint16_t color);
 void ST7789_DrawPixel(uint16_t x, uint16_t y, uint16_t color);

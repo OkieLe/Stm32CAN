@@ -2,8 +2,6 @@
 
 uint16_t BACK_COLOR = 0x0000; //User customized background color
 
-SPI_HandleTypeDef* hspi;
-
 /**
  * @brief Select ST7789 controller
  * @param none
@@ -24,6 +22,26 @@ void ST7789_UnSelect()
   HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
 }
 
+void SDA_Set()
+{
+  HAL_GPIO_WritePin(SDA_GPIO_Port, SDA_Pin, GPIO_PIN_SET);
+}
+
+void SDA_Reset()
+{
+  HAL_GPIO_WritePin(SDA_GPIO_Port, SDA_Pin, GPIO_PIN_RESET);
+}
+
+void SCK_Set()
+{
+  HAL_GPIO_WritePin(SCK_GPIO_Port, SCK_Pin, GPIO_PIN_SET);
+}
+
+void SCK_Reset()
+{
+  HAL_GPIO_WritePin(SCK_GPIO_Port, SCK_Pin, GPIO_PIN_RESET);
+}
+
 /**
  * @brief Reset the ST7789 controller
  * @param none
@@ -36,6 +54,29 @@ void ST7789_Reset()
   HAL_GPIO_WritePin(RST_GPIO_Port, RST_Pin, GPIO_PIN_SET);
 }
 
+void ST7789_WriteByte(uint8_t byte) {
+  uint8_t i = 0;
+  for(i=8; i>0; i--)
+  {
+    SCK_Reset();
+    if(byte & 0x80)
+      SDA_Set();
+    else
+      SDA_Reset();
+    SCK_Set();
+    byte <<= 1;
+  }
+}
+
+void ST7789_WriteDC(uint8_t data) {
+  SCK_Reset();
+  if(data & 0x01)
+    SDA_Set();
+  else
+    SDA_Reset();
+  SCK_Set();
+}
+
 /**
  * @brief Write command to ST7789 controller
  * @param cmd -> command to write
@@ -44,8 +85,8 @@ void ST7789_Reset()
 void ST7789_WriteCommand(uint8_t cmd)
 {
   ST7789_Select();
-  uint16_t TxData = cmd;
-  HAL_SPI_Transmit(hspi, (uint8_t*)&TxData, 1, HAL_MAX_DELAY);
+  ST7789_WriteDC(0);
+  ST7789_WriteByte(cmd);
   ST7789_UnSelect();
 }
 
@@ -61,8 +102,8 @@ static void ST7789_WriteData(uint8_t *buff, size_t buff_size)
   uint16_t index = 0;
   while (buff_size > 0 && index < buff_size)
   {
-    uint16_t TxData =  buff[index] | 0x100;
-    HAL_SPI_Transmit(hspi, (uint8_t*)&TxData, 1, HAL_MAX_DELAY);
+    ST7789_WriteDC(1);
+    ST7789_WriteByte(buff[index]);
     index ++;
   }
   ST7789_UnSelect();
@@ -75,8 +116,8 @@ static void ST7789_WriteData(uint8_t *buff, size_t buff_size)
 static void ST7789_WriteData_Fixed(uint8_t data)
 {
   ST7789_Select();
-  uint16_t TxData = data | 0x100;
-  HAL_SPI_Transmit(hspi, (uint8_t*)&TxData, 1, HAL_MAX_DELAY);
+  ST7789_WriteDC(1);
+  ST7789_WriteByte(data);
   ST7789_UnSelect();
 }
 /**
@@ -115,65 +156,40 @@ void ST7789_SetBrightness(uint8_t Brightness)
   ST7789_WriteData_Fixed(Brightness);
 }
 
-void ST7789_Init(SPI_HandleTypeDef *spi)
+void ST7789_Init()
 {
-  hspi = spi;
-  ST7789_Select();
   HAL_GPIO_WritePin(RST_GPIO_Port, RST_Pin, GPIO_PIN_SET);
   HAL_Delay(300);
   HAL_GPIO_WritePin(RST_GPIO_Port, RST_Pin, GPIO_PIN_RESET);
   HAL_Delay(500);
   HAL_GPIO_WritePin(RST_GPIO_Port, RST_Pin, GPIO_PIN_SET);
   HAL_Delay(500);
-  ST7789_WriteCommand(0x36);
+  ST7789_WriteCommand(0x01);
+  HAL_Delay(150);
 
-  switch (USING_HORIZONAL)
-  {
-    case 0 : ST7789_WriteData_Fixed(0x00); break;
-    case 1 : ST7789_WriteData_Fixed(0xC0); break;
-    case 2 : ST7789_WriteData_Fixed(0x70); break;
-    case 3 : ST7789_WriteData_Fixed(0xA0); break;
-    default : break;
-  }
-
-  ST7789_WriteCommand(0x3A);
-  ST7789_WriteData_Fixed(0x05);
-  ST7789_WriteCommand(0xB2);
-  {
-    uint8_t data[] = {0x0C, 0x0C, 0x00, 0x33, 0x33};
-    ST7789_WriteData(data, sizeof(data));
-  }
-  ST7789_WriteCommand(0XB7);
-  ST7789_WriteData_Fixed(0x35);
-  ST7789_WriteCommand(0xBB);
-  ST7789_WriteData_Fixed(0x19);
-  ST7789_WriteCommand(0xC0);
-  ST7789_WriteData_Fixed(0x2C);
-  ST7789_WriteCommand(0xC2);
-  ST7789_WriteData_Fixed(0x01);
-  ST7789_WriteCommand(0xC3);
-  ST7789_WriteData_Fixed(0x12);
-  ST7789_WriteCommand(0xC4);
-  ST7789_WriteData_Fixed(0x20);
-  ST7789_WriteCommand(0xC6);
-  ST7789_WriteData_Fixed(0x0F);
-  ST7789_WriteCommand(0xD0);
-  ST7789_WriteData_Fixed(0xA4);
-  ST7789_WriteData_Fixed(0xA1);
-  ST7789_WriteCommand(0xE0);
-  {
-    uint8_t data[] = {0xD0, 0x04, 0x0D, 0x11, 0x13, 0x2B, 0x3F, 0x54, 0x4C, 0x18, 0x0D, 0x0B, 0x1F, 0x23};
-    ST7789_WriteData(data, sizeof(data));
-  }
-    ST7789_WriteCommand(0xE1);
-  {
-    uint8_t data[] = {0xD0, 0x04, 0x0C, 0x11, 0x13, 0x2C, 0x3F, 0x44, 0x51, 0x2F, 0x1F, 0x1F, 0x20, 0x23};
-    ST7789_WriteData(data, sizeof(data));
-  }
-  ST7789_WriteCommand(0x21);
   ST7789_WriteCommand(0x11);
+  HAL_Delay(500);
+  ST7789_WriteCommand(0x3A);
+  ST7789_WriteData_Fixed(0x55);
+  HAL_Delay(10);
+  ST7789_WriteCommand(0x36);
+  ST7789_WriteData_Fixed(0x0);
+  ST7789_WriteCommand(0x2A);
+  ST7789_WriteData_Fixed(0x0);
+  ST7789_WriteData_Fixed(0x0);
+  ST7789_WriteData_Fixed(0x0);
+  ST7789_WriteData_Fixed(0xF0);
+  ST7789_WriteCommand(0x2B);
+  ST7789_WriteData_Fixed(0x0);
+  ST7789_WriteData_Fixed(0x0);
+  ST7789_WriteData_Fixed(0x0);
+  ST7789_WriteData_Fixed(0xF0);
+  ST7789_WriteCommand(0x21);
+  HAL_Delay(10);
+  ST7789_WriteCommand(0x13);
+  HAL_Delay(10);
   ST7789_WriteCommand(0x29);
-  ST7789_UnSelect();
+  HAL_Delay(500);
 }
 
 /**
